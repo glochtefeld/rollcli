@@ -1,10 +1,40 @@
 #!/usr/bin/raku
 use v6;
 
-sub parse-roll($roll) { # In the form 2d6+2
-    (my $count, my $die, my $bonus) = $roll.split('+').map({$_.split('d').map({Int($_)})}).flat;
-    $bonus = 0 if $bonus ~~Any:U;    
-    max($count, ($die × $count).rand.Int) + $bonus;
+class Die {
+    has $.count;
+    has $.size;
+    method roll() { max($.count, ($.size * $.count).rand.Int); }
+}
+
+sub mk-roll ($str) {
+    if $str ~~ /^(d|\d+d)/ {
+        (my $ct, my $sz) = $str.split('d');
+        $ct = 1 if $ct eq "";
+        return Die.new(count=>$ct.Int, size=>$sz.Int).roll();
+    }
+    elsif $str ~~ /\d+/ { return $str.Int; }
+    else { return $str; }
+}
+
+multi sub sumRoll(@arr, $acc where @arr.elems == 0) { $acc; }
+multi sub sumRoll(@arr, $acc) {
+    if @arr[0] eq '-' {
+        return sumRoll(@arr[2..*],$acc + @arr[1] * -1);
+    }
+    else {
+        return sumRoll(@arr[1..*], $acc + @arr[0]);
+    }
+}
+multi sub sumRoll(@arr) { sumRoll(@arr, 0); }
+
+#`[
+    sumRoll([],acc) = acc
+    sumRoll(h::n::t, acc) = if h eq '-' then sumRoll(t, acc-n) else sumRoll(n::t, acc+h)
+]
+
+sub parse-roll($roll) { # 2d6+8-2 -> 2d6, 8, -, 2 -> <roll> 8, -, 2 -> <sum>
+    sumRoll($roll.split(/\+|\-/, :v).map({$_.Str unless $_ eq '+'}).map(&mk-roll));
 }
 
 constant @suits = <Clubs Diamonds Hearts Spades>;
